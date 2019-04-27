@@ -1,5 +1,6 @@
 # Ignore everything
 *
+*.jpg
 
 # Whitelist anything that's a directory
 !*.jpg
