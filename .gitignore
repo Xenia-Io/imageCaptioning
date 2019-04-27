@@ -1,15 +1,2 @@
 # Ignore everything
-*.jpg
-
-
-# Whitelist anything that's a directory
-!*/
-
-# And all the file types I'm interested in.
-!.gitignore
-!requirements.txt
-!*.py
-!*.ipynb
-!*.md
-!*.json
-!*.md
+//*.jpg
