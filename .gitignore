@@ -1,9 +1,9 @@
 # Ignore everything
 *
-*.jpg
+
 
 # Whitelist anything that's a directory
-!*.jpg
+!*/
 
 # And all the file types I'm interested in.
 !.gitignore
