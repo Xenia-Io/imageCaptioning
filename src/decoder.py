@@ -40,13 +40,12 @@ class Decoder(nn.Module):
       return a
     
     # Finds the feature to be focused for the current time step 
-    def build_attention_model(self, input):
+    def build_attention_model(self, input, hidden):
       batch_size = input.size(0)
       input_layer = nn.Linear(self.dim_of_features, self.dim_of_features, bias=False)
       output = input_layer(input)
-      hidden_layer = nn.Linear(self.dim_of_features, self.dim_of_features, bias=False)
-      input_h = torch.randn(batch_size, 1, self.dim_of_features)
-      output_h = hidden_layer(input_h)
+      hidden_layer = nn.Linear(self.hidden_size, self.dim_of_features, bias=False)
+      output_h = hidden_layer(hidden)
       concat_input = output + output_h
       bias = nn.Parameter(torch.zeros(self.num_of_features)).view(1, -1, 1)
       fullconnected_layer = nn.ReLU()(concat_input + bias)
@@ -56,7 +55,7 @@ class Decoder(nn.Module):
       final_output = final_layer(fullconnected_layer)
       final_output = final_output.squeeze(2)   
       a = self.call_softMax(final_output).unsqueeze(2)
-      new_in = np.multiply(input.detach(), a.detach())
+      new_in = input * a
       z = torch.sum(new_in, dim=1)
         
       return a, z
