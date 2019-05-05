@@ -26,6 +26,7 @@ class vocab():
     def add_word(self,word):
         self.word2id[word] = self.count
         self.id2word[self.count] = word
+        self.count = self.count + 1
 
 def build_vocab(csvfile, vocab_size,dataset_dir):
     train_df = pd.read_csv(csvfile)
@@ -43,7 +44,7 @@ def build_vocab(csvfile, vocab_size,dataset_dir):
         vocabulary.add_word(word)
     vocab_path = dataset_dir + "vocab.pkl"
     with open(vocab_path, "wb") as f:
-        pickle.dump(vocab, f)
+        pickle.dump(vocabulary, f)
 
 if __name__ == "__main__":
     dataset_dir = "/Users/shiprajain/ImageCaptioning/data"

@@ -4,18 +4,18 @@ import numpy as np
 
 class Decoder(nn.Module):
     def __init__(self, num_of_features, dim_of_features, hidden_size, vocab_size, embedding_size):
-        super(Decoder, self).__init__()
+      super(Decoder, self).__init__()
         
-        self.num_of_features = num_of_features
-        self.dim_of_features = dim_of_features
-        self.hidden_size = hidden_size
-        self.vocab_size = vocab_size
-        self.embedding_size = embedding_size
-        self.word_embed = nn.Embedding(self.vocab_size, self.embedding_size)
+      self.num_of_features = num_of_features
+      self.dim_of_features = dim_of_features
+      self.hidden_size = hidden_size
+      self.vocab_size = vocab_size
+      self.embedding_size = embedding_size
+      self.word_embed = nn.Embedding(self.vocab_size, self.embedding_size)
         
         # LSTM related variables
-        self.lstm_cell = nn.LSTMCell(embedding_size+dim_of_features, hidden_size)
-        self.deep_output = nn.Linear(self.hidden_size, self.vocab_size)
+      self.lstm_cell = nn.LSTMCell(embedding_size+dim_of_features, hidden_size)
+      self.deep_output = nn.Linear(self.hidden_size, self.vocab_size)
     
 
     # Initializes the hidden and memory states of the LSTM    
@@ -40,29 +40,27 @@ class Decoder(nn.Module):
       return a
     
     # Finds the feature to be focused for the current time step 
-    def build_attention_model(self, input, hidden):
-      batch_size = input.size(0)
-      input_layer = nn.Linear(self.dim_of_features, self.dim_of_features, bias=False)
-      output = input_layer(input)
-      hidden_layer = nn.Linear(self.hidden_size, self.dim_of_features, bias=False)
-      output_h = hidden_layer(hidden)
-      concat_input = output + output_h
-      bias = nn.Parameter(torch.zeros(self.num_of_features)).view(1, -1, 1)
-      fullconnected_layer = nn.ReLU()(concat_input + bias)
+    def predict_attention(self, input_features, hidden):
+      batch_size = input_features.size(0)
+      transform_vfeatures = nn.Linear(self.dim_of_features, self.dim_of_features, bias=False)
+      output_v = transform_vfeatures(input_features)
+      transform_hiddenvec = nn.Linear(self.hidden_size, self.dim_of_features, bias=False)
+      output_h = transform_hiddenvec(hidden)
+      hidden_visual_input = output_v + output_h
+      bias = nn.Parameter(torch.zeros(self.dim_of_features)).view(1, -1, 1)
+      activated_out = nn.ReLU()(hidden_visual_input + bias)
     
       # Add last layer for final transformation
-      final_layer = nn.Linear(self.dim_of_features, 1, bias=False)
-      final_output = final_layer(fullconnected_layer)
-      final_output = final_output.squeeze(2)   
-      a = self.call_softMax(final_output).unsqueeze(2)
-      new_in = input * a
-      z = torch.sum(new_in, dim=1)
-        
+      transform_toattention = nn.Linear(self.dim_of_features, 1, bias=False)
+      attention_out = transform_toattention(activated_out)
+      attention_out = attention_out.squeeze(2)   
+      a = self.call_softMax(attention_out).unsqueeze(2)
+      weighted_contexts = input_features * a
+      z = torch.sum(weighted_contexts, dim=1)
       return a, z
           
     # Runs the forward pass of the LSTM 
-    def forward(self, img_features, captions, dropout =
-               False):
+    def forward(self, img_features, captions, dropout = False):
       # Initializing the required variables
       batch_size = img_features.size(0)
       h0, c0 = self.initialize_states(img_features)
@@ -75,7 +73,9 @@ class Decoder(nn.Module):
         word_embeddings = nn.Dropout(0.5)(word_embeddings)
       
       for t in range(max_cap_len):
-        context, alpha = self.build_attention_model(img_features, h0)
+
+        # can change the computation of context vector for first word, may be average of all visual features instead of calling predict_attention
+        context, alpha = self.predict_attention(img_features, h0)
         lstm_input = torch.cat((word_embeddings[:, t,:].squeeze(1), context), dim=1)
         
         h0, c0 = self.lstm_cell(lstm_input, (h0, c0))
@@ -83,6 +83,5 @@ class Decoder(nn.Module):
 
         predictions[:, t, :] = output
         alphas[:, t, :] = alpha
-
       return predictions, alphas
-      
+
