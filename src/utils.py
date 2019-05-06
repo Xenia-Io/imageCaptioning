@@ -4,6 +4,10 @@ import torch.utils.data as datautil
 import nltk
 import pandas as pd
 from PIL import Image
+import nltk
+nltk.download('punkt')
+from nltk import word_tokenize
+from nltk import bleu_score
 
 
 # Transforms the image to match VGG16 inputs
@@ -24,6 +28,23 @@ def process_image(resize, crop_size, split):
     return transformed_image
   
   
+
+def compute_bleu_score(predictedCaptions, trueCaptions, mode="4-gram"):
+    if mode == "1-gram":
+        weights = [1.0]
+    elif mode == "2-gram":
+        weights = [0.5, 0.5]
+    elif mode == "3-gram":
+        weights = [0.33, 0.33, 0.33]
+    elif mode == "4-gram":
+        weights = [0.25, 0.25, 0.25, 0.25]
+    else:
+        sys.stdout.write("Not support mode")
+        sys.exit()
+        
+    return bleu_score.sentence_bleu([predictedCaptions], trueCaptions, weights=weights)
+
+
 # Creates a dataset that returns the images and the corresponding captions.
 class Flickr8KDataset(datautil.Dataset):
     def __init__(self, csv_file, root_dir, vocabulary, max_caption_len, transform=None):
