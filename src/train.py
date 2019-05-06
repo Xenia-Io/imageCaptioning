@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 # import utils.py
 from beam_search import beamsearch
+from torch.autograd import Variable
 
 def save_predictions_lengths(data_loader):
   
@@ -143,8 +144,9 @@ def validation(encoder, decoder, val_input, loss_fn, epoch, vocab, beam_size, fe
   encoder.eval()
   decoder.eval()
   for images, captions in val_input:
-      images = to_variable(images)
-      captions = to_variable(captions)
+      if torch.cuda.is_available():
+        images = Variable(images.cuda())
+        captions = Variable(captions.cuda())
       img_features = encoder(images)
       img_features = img_features.view(img_features.size(0), feature_dim, num_features).transpose(1,2)
       prediction = beam_search(decoder, img_features, vocab, beam_size)
