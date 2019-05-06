@@ -4,8 +4,7 @@ import pickle
 import torch
 import torch.nn as nn
 # import utils.py
-
-
+from beam_search import beamsearch
 
 def save_predictions_lengths(data_loader):
   
@@ -137,3 +136,24 @@ def prepare_training(input_csv, img_dir, batch_size, shuffle, captions, vocab_pa
     
     # start training
         train(encoder, decoder, enc_optimizer, dec_optimizer, data_loader, epoch_i, grad_clip)
+      
+      
+def validation(encoder, decoder, val_input, loss_fn, epoch, vocab, beam_size, feature_dim, num_features):
+  predictions = list()
+  encoder.eval()
+  decoder.eval()
+  for images, captions in val_input:
+      images = to_variable(images)
+      captions = to_variable(captions)
+      img_features = encoder(images)
+      img_features = img_features.view(img_features.size(0), feature_dim, num_features).transpose(1,2)
+      prediction = beam_search(decoder, img_features, vocab, beam_size)
+
+      predictions.append(prediction)
+
+      # delete temporary data
+      del images, img_features, prediction, captions
+      gc.collect()
+
+  return predictions
+      
