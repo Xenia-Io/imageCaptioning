@@ -29,7 +29,7 @@ def train(encoder, decoder, enc_optimizer, dec_optimizer, data_loader, epoch, gr
   
   for images, target_captions in tqdm(data_loader):
     # Length of each caption
-    predictions_lengths = [len(caption) for caption in target_captions]
+    caption_lengths = [len(caption) for caption in target_captions]
     
     # clear the gradients of all optimizers
     enc_optimizer.zero_grad()
@@ -49,8 +49,8 @@ def train(encoder, decoder, enc_optimizer, dec_optimizer, data_loader, epoch, gr
     
     # do forward for captioning
     predictions, alphas = decoder(img_features, target_captions[:, :-1])
-    predictions = pack_padded_sequence(predictions, predictions_lengths, batch_first=True)[0]
-    captions = pack_padded_sequence(target_caption[:, 1:], predictions_lengths, batch_first=True)[0]
+    predictions = pack_padded_sequence(predictions, caption_lengths, batch_first=True)[0]
+    captions = pack_padded_sequence(target_caption[:, 1:], caption_lengths, batch_first=True)[0]
       
     # calculate each loss of train
     loss = loss_function(predictions, captions)
