@@ -21,29 +21,26 @@ def save_predictions_lengths(data_loader):
 
 def clip_gradient(optimizer, grad_clip):
   
-    for params in optimizer.param_groups:
-      
-        for param in params["params"]:
-          
-            if param.grad is not None:
-                param.grad.data.clamp_(-grad_clip, grad_clip)
+    for ps in optimizer.param_groups:
+      for p in ps["params"]:
+        if p.grad is not None:
+            p.grad.data.clamp_(-grad_clip, grad_clip)
 
                 
 def train(encoder, decoder, enc_optimizer, dec_optimizer, data_loader, epoch, grad_clip, loss_function):
 
   # start training time
-  start_train = time.time()
-  
-  # start time
-  start = time.time()
+  start_training = time.time()
+
   
   # define the mode of the models
   encoder = encoder.train().cuda()
   decoder = decoder.train().cuda()
   
   predictions_lengths = save_predictions_lengths(data_loader)
+  train_loss = []
   
-  for image, target_caption in enumerate(tqdm(data_loader)):
+  for images, target_captions in tqdm(data_loader):
     
     # clear the gradients of all optimizers
     enc_optimizer.zero_grad()
@@ -51,15 +48,18 @@ def train(encoder, decoder, enc_optimizer, dec_optimizer, data_loader, epoch, gr
     
     # move variables to cuda
     if torch.cuda.is_available():
-        image = Variable(image.cuda())
-        target_caption = Variable(target_caption.cuda())
-        
+      images = Variable(images.cuda())
+      target_captions = Variable(target_captions.cuda())
+    else:
+      images = Variable(images)
+      target_captions = Variable(target_captions)
+      
     # extract features from encoder
-    img_features = encoder.forward(image)
+    img_features = encoder(images)
     img_features = img_features.view(img_features.size(0), dim_of_features, num_of_features).transpose(1,2)
     
     # do forward for captioning
-    predictions, alphas = decoder.forward(img_features, target_caption[:, :-1])
+    predictions, alphas = decoder(img_features, target_captions[:, :-1])
     predictions = pack_padded_sequence(predictions, predictions_lengths, batch_first=True)[0]
     captions = pack_padded_sequence(target_caption[:, 1:], predictions_lengths, batch_first=True)[0]
       
@@ -68,13 +68,13 @@ def train(encoder, decoder, enc_optimizer, dec_optimizer, data_loader, epoch, gr
     loss = loss + alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
     
     # back propagate
-    loss.backward()
+    loss.backward(retain_graph=False)
     
     # clip the gradient
     if grad_clip is not None:
         clip_gradient(dec_optimizer, grad_clip)
    
-        if encoder_optimizer is not None:
+        if enc_optimizer is not None:
           clip_gradient(enc_optimizer, grad_clip)
 
     # update the weight in the optimizers
@@ -82,11 +82,14 @@ def train(encoder, decoder, enc_optimizer, dec_optimizer, data_loader, epoch, gr
        enc_optimizer.step()
    
     dec_optimizer.step()
-        
-    start = time.time()
+    train_loss.append(float(loss))
+    del images, target_captions, img_features, predictions, alphas, loss
+    gc.collect()        
     
   end_training = time.time()
+
   print("Training time was: ", end_training-start_training)
+  print("Training loss is : ", np.sum(train_loss))
   
       
 def validation(encoder, decoder, val_input, loss_fn, epoch, vocab, beam_size, feature_dim, num_features):
@@ -97,6 +100,9 @@ def validation(encoder, decoder, val_input, loss_fn, epoch, vocab, beam_size, fe
       if torch.cuda.is_available():
         images = Variable(images.cuda())
         captions = Variable(captions.cuda())
+      else:
+        images = Variable(images)
+        captions = Variable(captions)
       img_features = encoder(images)
       img_features = img_features.view(img_features.size(0), feature_dim, num_features).transpose(1,2)
       prediction = beam_search(decoder, img_features, vocab, beam_size)
