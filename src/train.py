@@ -6,18 +6,6 @@ import torch.nn as nn
 from beam_search import beamsearch
 from torch.autograd import Variable
 
-def save_predictions_lengths(data_loader):
-  
-  predictions_lengths = []
-  
-  for images, target_captions in tqdm(data_loader):
-    max_cap_len = max([len(target_captions) for caption_i in target_captions]) - 1
-    
-    for caption_i in target_captions:
-      predictions_lengths[i] = len(caption_i)
-      
-  return predictions_lengths
-
 
 def clip_gradient(optimizer, grad_clip):
   
@@ -37,10 +25,11 @@ def train(encoder, decoder, enc_optimizer, dec_optimizer, data_loader, epoch, gr
   encoder = encoder.train().cuda()
   decoder = decoder.train().cuda()
   
-  predictions_lengths = save_predictions_lengths(data_loader)
   train_loss = []
   
   for images, target_captions in tqdm(data_loader):
+    # Length of each caption
+    predictions_lengths = [len(caption) for caption in target_captions]
     
     # clear the gradients of all optimizers
     enc_optimizer.zero_grad()
