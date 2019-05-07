@@ -3,11 +3,12 @@ import torchvision.transforms as transforms
 import torch.utils.data as datautil
 import nltk
 import pandas as pd
+import torch
+import torch.nn as nn
 from PIL import Image
-import nltk
-nltk.download('punkt')
 from nltk import word_tokenize
 from nltk import bleu_score
+
 
 
 # Transforms the image to match VGG16 inputs
@@ -82,10 +83,22 @@ class Flickr8KDataset(datautil.Dataset):
 
         return image, target
 
+def collate_fn(data):
+    # Sort a data list by caption length (descending order).
+    data.sort(key=lambda x: -len(x[1]))
+    # unzipping the tuples
+    images, captions = zip(*data)
+    # Converting tuple to a torch variable
+    images = torch.stack(images, dim=0)
+    # Merge captions (from tuple of 1D tensor to 2D tensor).
+    captions = nn.utils.rnn.pad_sequence(list(captions[:]), batch_first=True)
+    captions = captions.type(torch.IntTensor).long()
+
+    return torch.Tensor(images), captions
 
 # Returns the input data according to the batch size
 def load_dataset(input_csv, img_dir, vocab, max_caption_len, batch_size, shuffle):
     flickr_data = Flickr8KDataset(input_csv, img_dir, vocab, max_caption_len)
-    data_loader = torch.utils.data.DataLoader(dataset=flickr_data, batch_size=batch_size, shuffle=shuffle)
+    data_loader = datautil.DataLoader(dataset=flickr_data, batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
 
     return data_loader
