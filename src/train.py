@@ -1,11 +1,14 @@
+import config
 import numpy as np
 import pandas as pd
 import pickle
 import torch
 import torch.nn as nn
-from beam_search import beamsearch
+from beam_search import beam_search
 from torch.autograd import Variable
-
+from encoder import VGGNetEncoder
+from decoder import Decoder
+from utils import *
 
 def clip_gradient(optimizer, grad_clip):
   
@@ -15,15 +18,15 @@ def clip_gradient(optimizer, grad_clip):
             p.grad.data.clamp_(-grad_clip, grad_clip)
 
                 
-def train(encoder, decoder, enc_optimizer, dec_optimizer, data_loader, epoch, grad_clip, loss_function):
+def train_one_epoch(encoder, decoder, enc_optimizer, dec_optimizer, data_loader, grad_clip, loss_function):
 
   # start training time
   start_training = time.time()
 
   
   # define the mode of the models
-  encoder = encoder.train().cuda()
-  decoder = decoder.train().cuda()
+  encoder = encoder.train()
+  decoder = decoder.train()
   
   train_loss = []
   
@@ -81,7 +84,7 @@ def train(encoder, decoder, enc_optimizer, dec_optimizer, data_loader, epoch, gr
   print("Training loss is : ", np.sum(train_loss))
   
       
-def validation(encoder, decoder, val_input, loss_fn, epoch, vocab, beam_size, feature_dim, num_features):
+def validation(encoder, decoder, val_input, loss_fn, vocab, beam_size, feature_dim, num_features):
   predictions = list()
   encoder.eval()
   decoder.eval()
@@ -105,89 +108,61 @@ def validation(encoder, decoder, val_input, loss_fn, epoch, vocab, beam_size, fe
   return predictions
 
 
-def prepare_training(input_csv, img_dir_train, img_dir_val, batch_size, shuffle, captions, vocab_path, num_of_features, beam_size,
-                     dim_of_features, hidden_size, vocab_size, embedding_size, learning_rate, epochs, grad_clip):
-  
-  # set device 
-  if torch.cuda.is_available():
-    device = torch.device("cuda")
-  else:
-    device = torch.device("cpu")
-  
-  # load vocabulary
-  with open(vocab_path, "rb") as vcb:
-        vocabulary = pickle.load(vocab, vcb)
-  
-  
-  # load images for training
-  max_caption_len = max([len(caption) for caption in captions]) - 1
-  train_data_loader = load_dataset(input_csv, img_dir_train, vocabulary, max_caption_len, batch_size, shuffle)
-  
-  # load images for validation
-  max_caption_len = max([len(caption) for caption in captions]) - 1
-  val_data_loader = load_dataset(input_csv, img_dir_val, vocabulary, max_caption_len, batch_size, shuffle)
-  
-  
-  # initialize encoder
+def train_all(params):
+  device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+  with open(params["vocab_path"], "rb") as vocab_file:
+    vocab = pickle.load(vocab_file)
+
   encoder = VGGNetEncoder()
-  
-  enc_optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, encoder.parameters()),
-                                        lr = learning_rate)
-  
-  # initialize decoder
-  decoder = Decoder(num_of_features, dim_of_features, hidden_size, vocab_size, embedding_size)
-  
-  dec_optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, decoder.parameters()),
-                                        lr = learning_rate)
-   
-  # move to GPU
+  decoder = Decoder(params['num_of_features'],params['dim_of_features'],params['hidden_size'],params['vocab_size'],params['embed_size'])
+
+  ecoder_optim = torch.optim.Adam(params=filter(lambda p: p.requires_grad, encoder.parameters()),
+                                        lr=params["enc_lr"]) 
+  decoder_optim = torch.optim.Adam(params=filter(lambda p: p.requires_grad, decoder.parameters())
+                                         lr=params["dec_lr"])
   encoder = nn.DataParallel(encoder).to(device)
   decoder = nn.DataParallel(decoder).to(device)
 
-  # loss function
-  loss_function = nn.CrossEntropyLoss()
-  
-  # initialize scores
-  best_bleu_score = -1000
-  not_improved_counter = 0
-  
-  # train the model
-  for epoch_i in range(epochs):
-    
-    # start training
-    train(encoder, decoder, enc_optimizer, dec_optimizer, train_data_loader, epoch_i, grad_clip, loss_function)
-  
-    # start validation
-    predictions_v = validation(encoder, decoder, val_data_loader, loss_function, epoch_i, vocabulary, beam_size, dim_of_features, num_of_features)
+  transform_train = process_image(params['resize'],params['crop_size'], split = "Train")
+  transform_val = process_image(params['resize'],params['crop_size'], split = "Val")
 
-    # calculate blue score
-    predicted_caps = decoding_caption(predictions_v["predicted"], vocabulary.idx2word)
-    true_caps = decoding_caption(predictions_v["true"], vocabulary.idx2word)
-    
-    bleu_score_lst = []
-    for i in range(len(predicted_caps)):
-        bleu_score_lst.append(compute_bleu_score(predicted_caps[i], true_caps[i], mode="4-gram"))
-    bleu_score = np.mean(bleu_score_lst)
+  train_dataloader = load_dataset(params['train_csv'],params['train_dir'],vocab,params['batch_size'],transform_train,shuffle=True)
+  val_dataloader = load_dataset(params['val_csv'],params['val_dir'],vocab,params['batch_size'],transform_val,shuffle=True)
 
-    # increase counter to affect early stopping
-    if bleu_score < best_bleu_score:
-        not_improved_cnt += 1
-    else:
-        # learning is going well
-        best_bleu_score = bleu_score
-        not_improved_cnt = 0
-        
-    if not_improved_cnt == 10000:
-        break
+  grad_clip = 5.0
+  loss_func = nn.CrossEntropyLoss()
+  max_bleu = 0
+  score_tolerance_count = 0
+  max_tolerance_count = 10
 
-       
-def main(args):
-  
-  prepare_training(args.input_csv, args.img_dir_train, args.img_dir_val, args.batch_size, args.shuffle, args.captions, args.vocab_path, args.num_of_features, args.beam_size,
-                     args.dim_of_features, args.hidden_size, args.vocab_size, args.embedding_size, args.learning_rate, args.epochs, args.grad_clip)
-  
-  
-if __name__ == "__main__":
+  for epoch in range(params["n_epochs"]):
+    print("Epoch : ",epoch+1)
+    train_one_epoch(encoder, decoder, ecoder_optim, decoder_optim, train_dataloader, grad_clip, loss_func)
+    predictions, truecaptions = validation(encoder, decoder, val_dataloader, loss_func, vocab, params['beam_size'],params['dim_of_features'],params['num_of_features'])
+    predicted_captions = id2caption(predictions,vocab)
+    true_captions = id2caption(truecaptions,vocab)
+    bleu_scores = []
     
-    logger.debug("Running with args: {0}".format(args))
-    main(args)
+    for i in range(len(predicted_captions)):
+      bleu_scores.append(compute_bleu_score(predicted_captions[i],true_captions[i]))
+    curr_bleu_score =  np.mean(bleu_scores)
+
+    if(curr_bleu_score<max_bleu):
+      score_tolerance_count += 1
+    else :
+      max_bleu = curr_bleu_score
+      score_tolerance_count = 0
+      torch.save(encoder.state_dict(),params['encoder_weights_path'])
+      torch.save(decoder.state_dict(),params['decoder_weights_path'])
+
+    if(score_tolerance_count==max_tolerance_count):
+      print("Early stopping")
+      break
+
+
+if __name__ == '__main__':
+  args = config.parse_opt()
+  params = vars(args) # convert to ordinary dict
+  train_all(params)
+
+
