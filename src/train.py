@@ -86,6 +86,8 @@ def validation(encoder, decoder, val_input, loss_fn, epoch, vocab, beam_size, fe
   encoder.eval()
   decoder.eval()
   for images, captions in val_input:
+      captions_all = []
+      captions_all.extend(captions)
       if torch.cuda.is_available():
         images = Variable(images.cuda())
         captions = Variable(captions.cuda())
@@ -102,7 +104,7 @@ def validation(encoder, decoder, val_input, loss_fn, epoch, vocab, beam_size, fe
       del images, img_features, prediction, captions
       gc.collect()
 
-  return predictions
+  return predictions, captions_all
 
 
 def prepare_training(input_csv, img_dir_train, img_dir_val, batch_size, shuffle, captions, vocab_path, num_of_features, beam_size,
