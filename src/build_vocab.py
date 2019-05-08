@@ -47,7 +47,7 @@ def build_vocab(csvfile, vocab_size,dataset_dir):
         pickle.dump(vocabulary, f)
 
 if __name__ == "__main__":
-    dataset_dir = "/Users/shiprajain/ImageCaptioning/data"
+    dataset_dir = "/Users/shiprajain/ImageCaptioning/data/"
     train_csv = "/Users/shiprajain/ImageCaptioning/data/train/image_captions_train.csv"
     vocab_size = 10000
     build_vocab(train_csv, vocab_size,dataset_dir)
