@@ -90,7 +90,7 @@ def validation(encoder, decoder, val_input, loss_fn, vocab, beam_size, feature_d
   decoder.eval()
   for images, captions in val_input:
       captions_all = []
-      captions_all.extend(captions)
+      captions_all.extend(captions[1:])
       if torch.cuda.is_available():
         images = Variable(images.cuda())
         captions = Variable(captions.cuda())
@@ -141,8 +141,8 @@ def train_all(params):
     print("Epoch : ",epoch+1)
     train_one_epoch(encoder, decoder, ecoder_optim, decoder_optim, train_dataloader, grad_clip, loss_func)
     predictions, truecaptions = validation(encoder, decoder, val_dataloader, loss_func, vocab, params['beam_size'],params['dim_of_features'],params['num_of_features'])
-    predicted_captions = id2caption(predictions,vocab)
-    true_captions = id2caption(truecaptions,vocab)
+    predicted_captions = id2word_captions(predictions,vocab)
+    true_captions = id2word_captions(truecaptions,vocab)
     bleu_scores = []
     
     for i in range(len(predicted_captions)):
