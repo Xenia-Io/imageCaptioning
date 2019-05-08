@@ -73,7 +73,7 @@ class Flickr8KDataset(datautil.Dataset):
         caption = self.input_frame["caption"][idx]
         # Tokenize the word in the captions
         caption_tokens = nltk.tokenize.word_tokenize(str(caption).lower())
-        max_caption_len = max([len(tokens) for token in caption_tokens])
+        max_caption_len = max([len(tokens) for tokens in caption_tokens])
         # Convert the captions to the corresponding word ids from the built vocabulary.
         captions = []
         captions.append(self.vocab.word2id['<start>'])
