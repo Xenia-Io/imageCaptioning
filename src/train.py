@@ -22,7 +22,7 @@ def clip_gradient(optimizer, grad_clip):
             p.grad.data.clamp_(-grad_clip, grad_clip)
 
                 
-def train_one_epoch(encoder, decoder, enc_optimizer, dec_optimizer, data_loader, grad_clip, loss_function):
+def train_one_epoch(encoder, decoder, enc_optimizer, dec_optimizer, data_loader, grad_clip, loss_function, params):
 
   # start training time
   start_training = time.time()
@@ -52,7 +52,7 @@ def train_one_epoch(encoder, decoder, enc_optimizer, dec_optimizer, data_loader,
       
     # extract features from encoder
     img_features = encoder(images)
-    img_features = img_features.view(img_features.size(0), dim_of_features, num_of_features).transpose(1,2)
+    img_features = img_features.view(img_features.size(0), params["dim_of_features"], params["num_of_features"]).transpose(1,2)
     
     # do forward for captioning
     predictions, alphas = decoder(img_features, target_captions[:, :-1])
@@ -143,7 +143,7 @@ def train_all(params):
 
   for epoch in range(params["n_epochs"]):
     print("Epoch : ",epoch+1)
-    train_one_epoch(encoder, decoder, ecoder_optim, decoder_optim, train_dataloader, grad_clip, loss_func)
+    train_one_epoch(encoder, decoder, ecoder_optim, decoder_optim, train_dataloader, grad_clip, loss_func, params)
     predictions, truecaptions = validation(encoder, decoder, val_dataloader, loss_func, vocab, params['beam_size'],params['dim_of_features'],params['num_of_features'])
     predicted_captions = id2word_captions(predictions,vocab)
     true_captions = id2word_captions(truecaptions,vocab)
