@@ -48,7 +48,7 @@ def compute_bleu_score(predictedCaptions, trueCaptions, mode="4-gram"):
 
 # Creates a dataset that returns the images and the corresponding captions.
 class Flickr8KDataset(datautil.Dataset):
-    def __init__(self, csv_file, root_dir, vocabulary, max_caption_len, transform=None):
+    def __init__(self, csv_file, root_dir, vocabulary, transform=None):
             """
             Args:
                 csv_file (string): Path to the csv file with annotations.
@@ -72,7 +72,7 @@ class Flickr8KDataset(datautil.Dataset):
         caption = self.input_frame.iloc[idx, 1]
         # Tokenize the word in the captions
         caption_tokens = nltk.tokenize.word_tokenize(str(caption).lower())
-
+        max_caption_len = max([len(tokens) for token in caption_tokens])
         # Convert the captions to the corresponding word ids from the built vocabulary.
         captions = []
         captions.append(self.vocab['<start>'])
@@ -97,8 +97,8 @@ def collate_fn(data):
     return torch.Tensor(images), captions
 
 # Returns the input data according to the batch size
-def load_dataset(input_csv, img_dir, vocab, max_caption_len, batch_size, shuffle):
-    flickr_data = Flickr8KDataset(input_csv, img_dir, vocab, max_caption_len)
+def load_dataset(input_csv, img_dir, vocab, batch_size, shuffle):
+    flickr_data = Flickr8KDataset(input_csv, img_dir, vocab)
     data_loader = datautil.DataLoader(dataset=flickr_data, batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
 
     return data_loader

@@ -89,6 +89,8 @@ def validation(encoder, decoder, val_input, loss_fn, vocab, beam_size, feature_d
   encoder.eval()
   decoder.eval()
   for images, captions in val_input:
+      captions_all = []
+      captions_all.extend(captions)
       if torch.cuda.is_available():
         images = Variable(images.cuda())
         captions = Variable(captions.cuda())
@@ -105,7 +107,7 @@ def validation(encoder, decoder, val_input, loss_fn, vocab, beam_size, feature_d
       del images, img_features, prediction, captions
       gc.collect()
 
-  return predictions
+  return predictions, captions_all
 
 
 def train_all(params):
