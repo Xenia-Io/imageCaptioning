@@ -8,7 +8,7 @@ import torch.nn as nn
 from PIL import Image
 from nltk import word_tokenize
 from nltk import bleu_score
-
+import re
 
 
 # Transforms the image to match VGG16 inputs
@@ -102,3 +102,15 @@ def load_dataset(input_csv, img_dir, vocab, batch_size, shuffle):
     data_loader = datautil.DataLoader(dataset=flickr_data, batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
 
     return data_loader
+
+# Converts the captions generated as ids from decoder to words.
+def id2word_captions(captions_list, id2word_map):
+  parsed_captions = []
+  for caption in caption_list:
+    caption = caption.data.cpu().numpy()
+    caption = [id2word_map[id] for id in caption if id2word_map[id]!= "<end>"]
+    caption = ' '.join(caption)
+    caption = re.sub(r' \.', '.', caption)
+    parsed_captions.append(caption)
+    
+  return parsed_captions
