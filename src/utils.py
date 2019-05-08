@@ -49,18 +49,18 @@ def compute_bleu_score(predictedCaptions, trueCaptions, mode="4-gram"):
 # Creates a dataset that returns the images and the corresponding captions.
 class Flickr8KDataset(datautil.Dataset):
     def __init__(self, csv_file, root_dir, vocabulary, transform=None):
-            """
-            Args:
-                csv_file (string): Path to the csv file with annotations.
-                root_dir (string): Directory with all the images.
-                vocabulary (vocab object): Object with the word_to_ind mappings.
-                transform (callable, optional): Optional transform to be applied
-                    on a sample.
-            """
-            self.input_frame = pd.read_csv(csv_file)
-            self.root_dir = root_dir
-            self.transform = transform
-            self.vocab = vocabulary
+        """
+        Args:
+            csv_file (string): Path to the csv file with annotations.
+            root_dir (string): Directory with all the images.
+            vocabulary (vocab object): Object with the word_to_ind mappings.
+            transform (callable, optional): Optional transform to be applied
+                on a sample.
+        """
+        self.input_frame = pd.read_csv(csv_file)
+        self.root_dir = root_dir
+        self.transform = transform
+        self.vocab = vocabulary
 
     def __len__(self):
         return len(self.input_frame)
@@ -69,7 +69,7 @@ class Flickr8KDataset(datautil.Dataset):
         img_path = os.path.join(self.root_dir, self.input_frame.iloc[idx, 0])
         image = Image.open(img_path).convert("RGB")
         if self.transform is not None:
-            image = self.transform (image)
+            image = self.transform(image)
         caption = self.input_frame.iloc[idx, 1]
         # Tokenize the word in the captions
         caption_tokens = nltk.tokenize.word_tokenize(str(caption).lower())
@@ -106,12 +106,12 @@ def load_dataset(input_csv, img_dir, vocab, batch_size, shuffle):
 
 # Converts the captions generated as ids from decoder to words.
 def id2word_captions(captions_list, id2word_map):
-  parsed_captions = []
-  for caption in caption_list:
-    caption = caption.data.cpu().numpy()
-    caption = [id2word_map[id] for id in caption if id2word_map[id]!= "<end>"]
-    caption = ' '.join(caption)
-    caption = re.sub(r' \.', '.', caption)
-    parsed_captions.append(caption)
+    parsed_captions = []
+    for caption in caption_list:
+        caption = caption.data.cpu().numpy()
+        caption = [id2word_map[id] for id in caption if id2word_map[id]!= "<end>"]
+        caption = ' '.join(caption)
+        caption = re.sub(r' \.', '.', caption)
+        parsed_captions.append(caption)
     
-  return parsed_captions
+    return parsed_captions
