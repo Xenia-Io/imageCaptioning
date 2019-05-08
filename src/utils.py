@@ -67,8 +67,9 @@ class Flickr8KDataset(datautil.Dataset):
 
     def __getitem__(self, idx):
         img_path = os.path.join(self.root_dir, self.input_frame.iloc[idx, 0])
-        image= Image.open(img_path).convert("RGB")
-
+        image = Image.open(img_path).convert("RGB")
+        if self.transform is not None:
+            image = self.transform (image)
         caption = self.input_frame.iloc[idx, 1]
         # Tokenize the word in the captions
         caption_tokens = nltk.tokenize.word_tokenize(str(caption).lower())
@@ -98,7 +99,7 @@ def collate_fn(data):
 
 # Returns the input data according to the batch size
 def load_dataset(input_csv, img_dir, vocab, batch_size, shuffle):
-    flickr_data = Flickr8KDataset(input_csv, img_dir, vocab)
+    flickr_data = Flickr8KDataset(input_csv, img_dir, vocab, transform)
     data_loader = datautil.DataLoader(dataset=flickr_data, batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
 
     return data_loader
