@@ -66,20 +66,20 @@ class Flickr8KDataset(datautil.Dataset):
         return len(self.input_frame)
 
     def __getitem__(self, idx):
-        img_path = os.path.join(self.root_dir, self.input_frame.iloc[idx, 0])
+        img_path = os.path.join(self.root_dir, self.input_frame.iloc["file_name", idx])
         image = Image.open(img_path).convert("RGB")
         if self.transform is not None:
             image = self.transform(image)
-        caption = self.input_frame.iloc[idx, 1]
+        caption = self.input_frame.iloc["caption",idx]
         # Tokenize the word in the captions
         caption_tokens = nltk.tokenize.word_tokenize(str(caption).lower())
         max_caption_len = max([len(tokens) for token in caption_tokens])
         # Convert the captions to the corresponding word ids from the built vocabulary.
         captions = []
-        captions.append(self.vocab['<start>'])
+        captions.append(self.vocab.word2id['<start>'])
         for tokens in caption_tokens:
-            captions.append(self.vocab[token] if token in self.vocab else self.vocab['<unk>'] for token in tokens)
-        captions.append(self.vocab['<end>'] + word_dict['<pad>'] * (max_caption_len - len(tokens)))
+            captions.extend([self.vocab.word2id[token] if token in self.vocab.word2id.keys() else self.vocab.word2id['<unk>'] for token in tokens])
+        captions.append(self.vocab.word2id['<end>'] + self.vocab.word2id['<pad>'] * (max_caption_len - len(tokens)))
         target = torch.Tensor(captions)
 
         return image, target
