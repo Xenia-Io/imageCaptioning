@@ -9,6 +9,10 @@ from torch.autograd import Variable
 from encoder import VGGNetEncoder
 from decoder import Decoder
 from utils import *
+from build_vocab import vocab
+import time
+from tqdm import tqdm
+
 
 def clip_gradient(optimizer, grad_clip):
   
@@ -120,7 +124,7 @@ def train_all(params):
 
   ecoder_optim = torch.optim.Adam(params=filter(lambda p: p.requires_grad, encoder.parameters()),
                                         lr=params["enc_lr"]) 
-  decoder_optim = torch.optim.Adam(params=filter(lambda p: p.requires_grad, decoder.parameters())
+  decoder_optim = torch.optim.Adam(params=filter(lambda p: p.requires_grad, decoder.parameters()),
                                          lr=params["dec_lr"])
   encoder = nn.DataParallel(encoder).to(device)
   decoder = nn.DataParallel(decoder).to(device)
