@@ -98,7 +98,7 @@ def collate_fn(data):
     return torch.Tensor(images), captions
 
 # Returns the input data according to the batch size
-def load_dataset(input_csv, img_dir, vocab, batch_size, shuffle):
+def load_dataset(input_csv, img_dir, vocab, batch_size, transform, shuffle):
     flickr_data = Flickr8KDataset(input_csv, img_dir, vocab, transform)
     data_loader = datautil.DataLoader(dataset=flickr_data, batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
 
