@@ -66,11 +66,11 @@ class Flickr8KDataset(datautil.Dataset):
         return len(self.input_frame)
 
     def __getitem__(self, idx):
-        img_path = os.path.join(self.root_dir, self.input_frame.iloc["file_name", idx])
+        img_path = os.path.join(self.root_dir, self.input_frame["file_name"][idx])
         image = Image.open(img_path).convert("RGB")
         if self.transform is not None:
             image = self.transform(image)
-        caption = self.input_frame.iloc["caption",idx]
+        caption = self.input_frame["caption"][idx]
         # Tokenize the word in the captions
         caption_tokens = nltk.tokenize.word_tokenize(str(caption).lower())
         max_caption_len = max([len(tokens) for token in caption_tokens])
