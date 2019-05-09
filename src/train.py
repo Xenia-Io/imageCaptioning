@@ -12,7 +12,8 @@ from utils import *
 from build_vocab import vocab
 import time
 from tqdm import tqdm
-
+from torch.nn.utils.rnn import  pack_padded_sequence
+import gc
 
 def clip_gradient(optimizer, grad_clip):
   
@@ -23,20 +24,20 @@ def clip_gradient(optimizer, grad_clip):
 
                 
 def train_one_epoch(encoder, decoder, enc_optimizer, dec_optimizer, data_loader, grad_clip, loss_function, params):
-
+  device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
   # start training time
   start_training = time.time()
 
   
   # define the mode of the models
-  encoder = encoder.train()
-  decoder = decoder.train()
+  encoder.train()
+  decoder.train()
   
   train_loss = []
   
   for images, target_captions in tqdm(data_loader):
     # Length of each caption
-    caption_lengths = [len(caption) for caption in target_captions]
+    caption_lengths = [len(caption) - 1 for caption in target_captions]
     
     # clear the gradients of all optimizers
     enc_optimizer.zero_grad()
@@ -46,24 +47,23 @@ def train_one_epoch(encoder, decoder, enc_optimizer, dec_optimizer, data_loader,
     if torch.cuda.is_available():
       images = Variable(images.cuda())
       target_captions = Variable(target_captions.cuda())
-      caption_lengths = Variable(caption_lengths.cuda())
+      caption_lengths = Variable(torch.Tensor(caption_lengths).cuda())
     else:
       images = Variable(images)
       target_captions = Variable(target_captions)
-      caption_lengths = Variable(caption_lengths) 
+      caption_lengths = Variable(torch.Tensor(caption_lengths))
       
     # extract features from encoder
     img_features = encoder(images)
     img_features = img_features.view(img_features.size(0), params["dim_of_features"], params["num_of_features"]).transpose(1,2)
-    
     # do forward for captioning
     predictions, alphas = decoder(img_features, target_captions[:, :-1])
     predictions = pack_padded_sequence(predictions, caption_lengths, batch_first=True)[0]
-    captions = pack_padded_sequence(target_caption[:, 1:], caption_lengths, batch_first=True)[0]
-      
+    captions = pack_padded_sequence(target_captions[:, 1:], caption_lengths, batch_first=True)[0]
+    alpha_c = 1
     # calculate each loss of train
     loss = loss_function(predictions, captions)
-    loss = loss + alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
+    loss = loss + float(alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean())
     
     # back propagate
     loss.backward(retain_graph=False)
@@ -81,7 +81,7 @@ def train_one_epoch(encoder, decoder, enc_optimizer, dec_optimizer, data_loader,
    
     dec_optimizer.step()
     train_loss.append(float(loss))
-    del images, target_captions, img_features, predictions, alphas, loss
+    del images, target_captions, img_features, predictions, alphas, loss, caption_lengths
     gc.collect()        
     
   end_training = time.time()
@@ -120,7 +120,8 @@ def train_all(params):
   device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
   with open(params["vocab_path"], "rb") as vocab_file:
     vocab = pickle.load(vocab_file)
-
+  params['vocab_size'] = vocab.count
+  
   encoder = VGGNetEncoder()
   decoder = Decoder(params['num_of_features'],params['dim_of_features'],params['hidden_size'],params['vocab_size'],params['embed_size'])
 
@@ -135,7 +136,7 @@ def train_all(params):
   transform_val = process_image(params['resize'],params['crop_size'], split = "Val")
 
   train_dataloader = load_dataset(params['train_csv'],params['train_dir'],vocab,params['batch_size'],transform_train,shuffle=True)
-  val_dataloader = load_dataset(params['val_csv'],params['val_dir'],vocab,params['batch_size'],transform_val,shuffle=True)
+  val_dataloader = load_dataset(params['val_csv'],params['val_dir'],vocab, 1,transform_val,shuffle=True)
 
   grad_clip = 5.0
   loss_func = nn.CrossEntropyLoss()
@@ -172,5 +173,3 @@ if __name__ == '__main__':
   args = config.parse_opt()
   params = vars(args) # convert to ordinary dict
   train_all(params)
-
-
