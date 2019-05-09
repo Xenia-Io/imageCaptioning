@@ -46,9 +46,11 @@ def train_one_epoch(encoder, decoder, enc_optimizer, dec_optimizer, data_loader,
     if torch.cuda.is_available():
       images = Variable(images.cuda())
       target_captions = Variable(target_captions.cuda())
+      caption_lengths = Variable(caption_lengths.cuda())
     else:
       images = Variable(images)
       target_captions = Variable(target_captions)
+      caption_lengths = Variable(caption_lengths) 
       
     # extract features from encoder
     img_features = encoder(images)
