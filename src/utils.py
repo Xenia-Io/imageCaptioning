@@ -73,14 +73,15 @@ class Flickr8KDataset(datautil.Dataset):
         caption = self.input_frame["caption"][idx]
         # Tokenize the word in the captions
         caption_tokens = nltk.tokenize.word_tokenize(str(caption).lower())
-        max_caption_len = max([len(tokens) for tokens in caption_tokens])
+        max_caption_len = 10
         # Convert the captions to the corresponding word ids from the built vocabulary.
         captions = []
         captions.append(self.vocab.word2id['<start>'])
-        for tokens in caption_tokens:
-            captions.extend([self.vocab.word2id[token] if token in self.vocab.word2id.keys() else self.vocab.word2id['<unk>'] for token in tokens])
-        captions.append(self.vocab.word2id['<end>'] + self.vocab.word2id['<pad>'] * (max_caption_len - len(tokens)))
+        captions.extend([self.vocab.word2id[token] if token in self.vocab.word2id.keys() else self.vocab.word2id['<unk>'] for token in caption_tokens])
+        captions.append(self.vocab.word2id['<end>'] + self.vocab.word2id['<pad>'] * (max_caption_len - len(caption_tokens)))        
+        
         target = torch.Tensor(captions)
+        
 
         return image, target
 
@@ -91,11 +92,18 @@ def collate_fn(data):
     images, captions = zip(*data)
     # Converting tuple to a torch variable
     images = torch.stack(images, dim=0)
-    # Merge captions (from tuple of 1D tensor to 2D tensor).
-    captions = nn.utils.rnn.pad_sequence(list(captions[:]), batch_first=True)
-    captions = captions.type(torch.IntTensor).long()
 
-    return torch.Tensor(images), captions
+    images = torch.stack(tuple(images), 0)
+
+    # Merge captions (from tuple of 1D tensor to 2D tensor).
+    lengths = [len(cap) for cap in captions]
+
+    targets = torch.zeros(len(captions), max(lengths)).long()
+    for i, cap in enumerate(captions):
+        end = lengths[i]
+        targets[i, :end] = cap[:end]  
+
+    return torch.Tensor(images), targets
 
 # Returns the input data according to the batch size
 def load_dataset(input_csv, img_dir, vocab, batch_size, transform, shuffle):
