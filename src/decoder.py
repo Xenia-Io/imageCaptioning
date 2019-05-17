@@ -104,7 +104,7 @@ class Decoder(nn.Module):
             torch.cuda.empty_cache()
       return predictions, alphas
 
-    def get_words_inds(topk_words,vocab_size):
+    def get_words_inds(self, topk_words,vocab_size):
       prev_word_inds = topk_words / vocab_size
       next_word_inds = topk_words % vocab_size
       return prev_word_inds, next_word_inds
@@ -153,7 +153,7 @@ class Decoder(nn.Module):
         else:
             topk_scores, topk_words = scores.view(-1).topk(beam_size, 0, True, True)
 
-        prev_word_inds,next_word_inds = get_words_inds(topk_words,vocab_size)
+        prev_word_inds,next_word_inds = self.get_words_inds(topk_words,vocab_size)
 
         topk_seqs = torch.cat([topk_seqs[prev_word_inds], next_word_inds.unsqueeze(1).float()], dim=1)
         topk_alpha_seqs = torch.cat([topk_alpha_seqs[prev_word_inds], alpha[prev_word_inds].unsqueeze(1).float()], dim=1)
