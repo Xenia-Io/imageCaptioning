@@ -4,16 +4,16 @@ import pandas as pd
 import pickle
 import torch
 import torch.nn as nn
-from beam_search import beam_search
 from torch.autograd import Variable
-from encoder import VGGNetEncoder
+from encoder import ResNetEncoder
 from decoder import Decoder
 from utils import *
 from build_vocab import vocab
 import time
 from tqdm import tqdm
-from torch.nn.utils.rnn import  pack_padded_sequence
+from torch.nn.utils.rnn import pack_padded_sequence
 import gc
+
 
 def clip_gradient(optimizer, grad_clip):
   
@@ -24,7 +24,8 @@ def clip_gradient(optimizer, grad_clip):
 
                 
 def train_one_epoch(encoder, decoder, enc_optimizer, dec_optimizer, data_loader, grad_clip, loss_function, params):
-  device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+  os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+  device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   # start training time
   start_training = time.time()
 
@@ -45,9 +46,9 @@ def train_one_epoch(encoder, decoder, enc_optimizer, dec_optimizer, data_loader,
     
     # move variables to cuda
     if torch.cuda.is_available():
-      images = Variable(images.cuda())
-      target_captions = Variable(target_captions.cuda())
-      caption_lengths = Variable(torch.Tensor(caption_lengths).cuda())
+      images = Variable(images.cuda(0))
+      target_captions = Variable(target_captions.cuda(0))
+      caption_lengths = Variable(torch.Tensor(caption_lengths).cuda(0))
     else:
       images = Variable(images)
       target_captions = Variable(target_captions)
@@ -57,7 +58,7 @@ def train_one_epoch(encoder, decoder, enc_optimizer, dec_optimizer, data_loader,
     img_features = encoder(images)
     img_features = img_features.view(img_features.size(0), params["dim_of_features"], params["num_of_features"]).transpose(1,2)
     # do forward for captioning
-    predictions, alphas = decoder(img_features, target_captions[:, :-1])
+    predictions, alphas = decoder(img_features.float(), target_captions[:, :-1])
     predictions = pack_padded_sequence(predictions, caption_lengths, batch_first=True)[0]
     captions = pack_padded_sequence(target_captions[:, 1:], caption_lengths, batch_first=True)[0]
     alpha_c = 1
@@ -82,7 +83,9 @@ def train_one_epoch(encoder, decoder, enc_optimizer, dec_optimizer, data_loader,
     dec_optimizer.step()
     train_loss.append(float(loss))
     del images, target_captions, img_features, predictions, alphas, loss, caption_lengths
-    gc.collect()        
+    gc.collect() 
+    if torch.cuda.is_available():
+      torch.cuda.empty_cache()
     
   end_training = time.time()
 
@@ -91,38 +94,43 @@ def train_one_epoch(encoder, decoder, enc_optimizer, dec_optimizer, data_loader,
   
       
 def validation(encoder, decoder, val_input, loss_fn, vocab, beam_size, feature_dim, num_features):
+  if torch.cuda.is_available():
+    torch.cuda.empty_cache()
   predictions = list()
   encoder.eval()
   decoder.eval()
-  for images, captions in val_input:
-      captions_all = []
-      captions_all.extend(captions[1:])
+  captions_all = []
+  for images, captions in tqdm(val_input):
+      captions_all.append(captions[0,1:])
       if torch.cuda.is_available():
-        images = Variable(images.cuda())
-        captions = Variable(captions.cuda())
+        images = images.cuda(0)
+        captions = captions.cuda(0)
       else:
         images = Variable(images)
         captions = Variable(captions)
       img_features = encoder(images)
       img_features = img_features.view(img_features.size(0), feature_dim, num_features).transpose(1,2)
-      prediction = beam_search(decoder, img_features, vocab, beam_size)
+      prediction,_ = decoder.module.beam_search_captioning(img_features, vocab, beam_size)
 
       predictions.append(prediction)
 
       # delete temporary data
       del images, img_features, prediction, captions
       gc.collect()
-
+      if torch.cuda.is_available():
+        torch.cuda.empty_cache()
   return predictions, captions_all
 
 
 def train_all(params):
-  device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+  os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+  device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   with open(params["vocab_path"], "rb") as vocab_file:
     vocab = pickle.load(vocab_file)
   params['vocab_size'] = vocab.count
+  print("VOCAB COUNT", vocab.count)
   
-  encoder = VGGNetEncoder()
+  encoder = ResNetEncoder()
   decoder = Decoder(params['num_of_features'],params['dim_of_features'],params['hidden_size'],params['vocab_size'],params['embed_size'])
 
   ecoder_optim = torch.optim.Adam(params=filter(lambda p: p.requires_grad, encoder.parameters()),
@@ -163,7 +171,7 @@ def train_all(params):
       score_tolerance_count = 0
       torch.save(encoder.state_dict(),params['encoder_weights_path'])
       torch.save(decoder.state_dict(),params['decoder_weights_path'])
-
+    print("Current MAX BLEU SCORE", max_bleu)
     if(score_tolerance_count==max_tolerance_count):
       print("Early stopping")
       break
