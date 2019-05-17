@@ -76,7 +76,7 @@ def eval_all(params):
             else:
                 file_not_exist += 1
 
-    predicted_captions = id2word_captions(predicted_caption_ids, vocab.id2word)
+    predicted_captions = id2word_captions(predicted_caption_ids, vocab)
     output_df = {"predicted": [], "true": []}
     gram4_bleu_score_list = []
     gram3_bleu_score_list = []
