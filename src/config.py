@@ -19,8 +19,10 @@ def parse_opt():
     parser.add_argument('--n_epochs',type=int, default=200, help='number of epochs')
     parser.add_argument('--train_csv',type=str, default='~/ImageCaptioning/data/train/image_captions_train.csv', help='path to training file with image id and captions')
     parser.add_argument('--val_csv', type=str, default='~/ImageCaptioning/data/valid/image_captions_valid.csv', help='path to validation file with image id and captions')
+    parser.add_argument('--test_csv', type=str, default='~/ImageCaptioning/data/test/image_captions_test.csv', help='path to test file with image id and captions')
     parser.add_argument('--train_dir', type=str, default='~/ImageCaptioning/data/train/images', help='path to training images directory')
     parser.add_argument('--val_dir', type=str, default='~/ImageCaptioning/data/valid/images', help='path to validation images directory')
+    parser.add_argument('--test_dir', type=str, default='~/ImageCaptioning/data/test/images', help='path to test images directory')
     parser.add_argument('--encoder_weights_path',type=str, default='~/ImageCaptioning/model_weights/encoder_weights.pth', help='weight of trained encoder model')
     parser.add_argument('--decoder_weights_path',type=str, default='~/ImageCaptioning/model_weights/decoder_weights.pth', help='weight of trained decoder model')
 

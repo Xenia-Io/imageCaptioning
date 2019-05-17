@@ -110,7 +110,7 @@ def validation(encoder, decoder, val_input, loss_fn, vocab, beam_size, feature_d
         captions = Variable(captions)
       img_features = encoder(images)
       img_features = img_features.view(img_features.size(0), feature_dim, num_features).transpose(1,2)
-      prediction,_ = decoder.module.beam_search_captioning(img_features, vocab, beam_size)
+      prediction,_ = decoder.module.beam_search(img_features, vocab, beam_size)
 
       predictions.append(prediction)
 
