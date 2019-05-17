@@ -29,7 +29,6 @@ def process_image(resize, crop_size, split):
     return transformed_image
   
   
-
 def compute_bleu_score(predictedCaptions, trueCaptions, mode="4-gram"):
     if mode == "1-gram":
         weights = [1.0]
@@ -81,7 +80,6 @@ class Flickr8KDataset(datautil.Dataset):
         captions.append(self.vocab.word2id['<end>'] + self.vocab.word2id['<pad>'] * (max_caption_len - len(caption_tokens)))        
         
         target = torch.Tensor(captions)
-        
 
         return image, target
 
@@ -92,7 +90,6 @@ def collate_fn(data):
     images, captions = zip(*data)
     # Converting tuple to a torch variable
     images = torch.stack(images, dim=0)
-
     images = torch.stack(tuple(images), 0)
 
     # Merge captions (from tuple of 1D tensor to 2D tensor).
@@ -105,6 +102,7 @@ def collate_fn(data):
 
     return torch.Tensor(images), targets
 
+
 # Returns the input data according to the batch size
 def load_dataset(input_csv, img_dir, vocab, batch_size, transform, shuffle):
     flickr_data = Flickr8KDataset(input_csv, img_dir, vocab, transform)
@@ -112,12 +110,13 @@ def load_dataset(input_csv, img_dir, vocab, batch_size, transform, shuffle):
 
     return data_loader
 
+
 # Converts the captions generated as ids from decoder to words.
-def id2word_captions(captions_list, id2word_map):
+def id2word_captions(captions_list, vocab):
     parsed_captions = []
-    for caption in caption_list:
+    for caption in captions_list:
         caption = caption.data.cpu().numpy()
-        caption = [id2word_map[id] for id in caption if id2word_map[id]!= "<end>"]
+        caption = [vocab.id2word[id] for id in caption if vocab.id2word[id]!= "<end>"]
         caption = ' '.join(caption)
         caption = re.sub(r' \.', '.', caption)
         parsed_captions.append(caption)
