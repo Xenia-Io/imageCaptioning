@@ -1,3 +1,4 @@
+import skimage
 import numpy as np
 import pandas as pd
 import argparse
@@ -15,9 +16,8 @@ from utils import *
 from encoder import ResNetEncoder
 from decoder import Decoder
 import config
-from utils import compute_bleu_score
-# import matplotlib
-# matplotlib.use('TkAgg')
+import matplotlib
+matplotlib.use('TkAgg')
 from matplotlib import pyplot as plt
 
 
@@ -69,6 +69,7 @@ def visualize_results(img_path, img_alpha, predicted_caption, savefile):
     plt.axis('off')
 
     words = predicted_caption
+    words = words.split(' ')
     alpha_sum = np.zeros((14, 14))
     for t in range(len(words)):
         if words[t] == "<end>":
@@ -80,8 +81,8 @@ def visualize_results(img_path, img_alpha, predicted_caption, savefile):
         plt.imshow(image)
 
         alp_curr = img_alpha[t, :].view(14, 14)
-        alpha_sum += alp_curr
-        alp_img = skimage.transform.pyramid_expand(alp_curr.numpy(), upscale=16, sigma=20)
+        alpha_sum += alp_curr.data.cpu().numpy()
+        alp_img = skimage.transform.pyramid_expand(alp_curr.data.cpu().numpy(), upscale=16, sigma=20)
         plt.gray()
         plt.imshow(alp_img, alpha=0.8)
         plt.axis('off')
@@ -90,8 +91,7 @@ def visualize_results(img_path, img_alpha, predicted_caption, savefile):
     plt.imshow(image)
     alpha_sum = skimage.transform.pyramid_expand(alpha_sum, upscale=16, sigma=20)
     plt.imshow(alpha_sum, alpha=0.8)
-    plt.savefig(savefile)
-
+    plt.show()
 
 def eval_all(params):
     images_files, captions, vocab = get_test_data(params)
@@ -151,9 +151,27 @@ def eval_all(params):
     top_bleu1_inds = sorted(range(len(gram1_bleu_score_list)), key=lambda i: gram1_bleu_score_list[i])[-3:]
     bottom_bleu1_inds = sorted(range(len(gram1_bleu_score_list)), key=lambda i: -gram1_bleu_score_list[i])[-3:]
 
+
+    for i in range(3):
+        savefile = 'top_bleu1_' + str(i) + '.png'
+        ind = top_bleu1_inds[i]
+        img_file = images_files[ind]
+        img_alpha = alphas[ind]
+        predicted_caption = predicted_captions[ind]
+        visualize_results(img_file, img_alpha, predicted_caption, savefile)
+
+
     for i in range(3):
         savefile = 'top_bleu4_' + str(i) + '.png'
         ind = top_bleu4_inds[i]
+        img_file = images_files[ind]
+        img_alpha = alphas[ind]
+        predicted_caption = predicted_captions[ind]
+        visualize_results(img_file, img_alpha, predicted_caption, savefile)
+
+    for i in range(3):
+        savefile = 'bottom_bleu4_' + str(i) + '.png'
+        ind = bottom_bleu4_inds[i]
         img_file = images_files[ind]
         img_alpha = alphas[ind]
         predicted_caption = predicted_captions[ind]
