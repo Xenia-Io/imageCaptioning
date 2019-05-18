@@ -51,9 +51,42 @@ def eval_one(img_path, encoder, decoder, transform, num_of_dim, num_of_feat,voca
     feature = encoder(image.unsqueeze(0))
     feature = feature.view(feature.size(0), num_of_dim, num_of_feat).transpose(1, 2)
 
-    word_ids, _ = decoder.module.beam_search(feature, vocab, beam_size=3)
+    word_ids, alpha = decoder.module.beam_search(feature, vocab, beam_size=3)
     return word_ids
 
+def visualize_results(img_path, img_alpha, predicted_caption,savefile):
+    image = Image.open(img_path).convert("RGB")
+    image = image.resize((224, 224))
+    plt.figure(figsize=(12, 12))
+    plt.subplot(4,5,1)
+    plt.text(0, 1, "<start>" , color='black', backgroundcolor='white', fontsize=8)
+    plt.imshow(image)
+    plt.axis('off')
+    
+    words = predicted_caption
+    alpha_sum = np.zeros((14, 14))
+    for t in range(len(words)):
+        if words[t] == "<end>":
+            break
+        if t > 14:
+            break
+        plt.subplot(4, 5, t+2)
+        plt.text(0, 1, '%s'%(words[t]) , color='black', backgroundcolor='white', fontsize=14)
+        plt.imshow(image)
+
+        alp_curr = img_alpha[t, :].view(14, 14)
+        alpha_sum += alp_curr
+        alp_img = skimage.transform.pyramid_expand(alp_curr.numpy(), upscale=16, sigma=20)
+        plt.gray()
+        plt.imshow(alp_img, alpha=0.8)
+        plt.axis('off')
+    
+    plt.figure()
+    plt.imshow(image)
+    alpha_sum = skimage.transform.pyramid_expand(alpha_sum, upscale=16, sigma=20)
+    plt.imshow(alpha_sum, alpha=0.8)
+    plt.savefig(savefile)
+    
 
 def eval_all(params):
     images_files, captions, vocab = get_test_data(params)
@@ -64,15 +97,16 @@ def eval_all(params):
     true_captions = []
     transform = process_image((224, 224), 224,"Val")
     file_not_exist = 0
-
+    alphas = []
     # prediction
     with torch.no_grad():
         for img_path, cap in tqdm(zip(images_files, captions), total=len(images_files)):
             if os.path.exists(img_path):
-                word_ids = eval_one(img_path, encoder, decoder, transform, params['dim_of_features'],
+                word_ids,alpha = eval_one(img_path, encoder, decoder, transform, params['dim_of_features'],
                                     params['num_of_features'],vocab)
                 predicted_caption_ids.append(word_ids)
                 true_captions.append(cap.lower())
+                alphas.append(alpha)
             else:
                 file_not_exist += 1
 
@@ -82,6 +116,7 @@ def eval_all(params):
     gram3_bleu_score_list = []
     gram2_bleu_score_list = []
     gram1_bleu_score_list = []
+
     for i in range(len(predicted_captions)):
         output_df["predicted"].append(predicted_captions[i])
         output_df["true"].append(true_captions[i])
@@ -101,9 +136,30 @@ def eval_all(params):
     save_path = os.path.join(params["test_dir"], "prediction.csv")
     pd.DataFrame(output_df).to_csv(save_path, index=False)
     print("results saved as prediction.csv")
+    
+    top_bleu4_inds = sorted(range(len(gram4_bleu_score_list)), key=lambda i: gram4_bleu_score_list[i])[-3:]
+    bottom_bleu4_inds = sorted(range(len(gram4_bleu_score_list)), key=lambda i: -gram4_bleu_score_list[i])[-3:]
+    top_bleu3_inds = sorted(range(len(gram3_bleu_score_list)), key=lambda i: gram3_bleu_score_list[i])[-3:]
+    bottom_bleu3_inds = sorted(range(len(gram3_bleu_score_list)), key=lambda i: -gram3_bleu_score_list[i])[-3:]
+    top_bleu2_inds = sorted(range(len(gram2_bleu_score_list)), key=lambda i: gram2_bleu_score_list[i])[-3:]
+    bottom_bleu2_inds = sorted(range(len(gram2_bleu_score_list)), key=lambda i: -gram2_bleu_score_list[i])[-3:]
+    top_bleu1_inds = sorted(range(len(gram1_bleu_score_list)), key=lambda i: gram1_bleu_score_list[i])[-3:]
+    bottom_bleu1_inds = sorted(range(len(gram1_bleu_score_list)), key=lambda i: -gram1_bleu_score_list[i])[-3:]
+
+
+
+    for i in range(3):
+        savefile = top_bleu4_+str(i)+'.png'
+        ind = top_bleu4_inds[i]
+        img_file = images_files[ind]
+        img_alpha = alphas[ind]
+        predicted_caption = predicted_captions[ind]
+        visualize_results(img_file,img_alpha,predicted_caption,savefile)
+
 
 
 if __name__ == '__main__':
     args = config.parse_opt()
     params = vars(args)
     eval_all(params)
+
