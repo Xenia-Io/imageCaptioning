@@ -16,12 +16,15 @@ from encoder import ResNetEncoder
 from decoder import Decoder
 import config
 from utils import compute_bleu_score
+# import matplotlib
+# matplotlib.use('TkAgg')
+from matplotlib import pyplot as plt
 
 
 def get_test_data(params):
     test_df = pd.read_csv(params["test_csv"])
     images_filenames = list(test_df["file_name"])
-    images_files = [params['test_dir'] + "/" + images_filename for images_filename in images_filenames] 
+    images_files = [params['test_dir'] + "/" + images_filename for images_filename in images_filenames]
     captions = list(test_df["caption"])
     vocab = pickle.load(open(params["vocab_path"], "rb"))
     return images_files, captions, vocab
@@ -29,7 +32,8 @@ def get_test_data(params):
 
 def load_models(params, vocab):
     encoder_model = ResNetEncoder()
-    decoder_model = Decoder(params['num_of_features'], params['dim_of_features'], params['hidden_size'],vocab.count, params['embed_size'])
+    decoder_model = Decoder(params['num_of_features'], params['dim_of_features'], params['hidden_size'], vocab.count,
+                            params['embed_size'])
 
     encoder = nn.DataParallel(encoder_model)
     decoder = nn.DataParallel(decoder_model)
@@ -44,7 +48,7 @@ def load_models(params, vocab):
     return encoder, decoder
 
 
-def eval_one(img_path, encoder, decoder, transform, num_of_dim, num_of_feat,vocab):
+def eval_one(img_path, encoder, decoder, transform, num_of_dim, num_of_feat, vocab):
     image = Image.open(img_path).convert("RGB")
     image = transform(image)
     image = Variable(image.cuda(0))
@@ -52,17 +56,18 @@ def eval_one(img_path, encoder, decoder, transform, num_of_dim, num_of_feat,voca
     feature = feature.view(feature.size(0), num_of_dim, num_of_feat).transpose(1, 2)
 
     word_ids, alpha = decoder.module.beam_search(feature, vocab, beam_size=3)
-    return word_ids
+    return word_ids, alpha
 
-def visualize_results(img_path, img_alpha, predicted_caption,savefile):
+
+def visualize_results(img_path, img_alpha, predicted_caption, savefile):
     image = Image.open(img_path).convert("RGB")
     image = image.resize((224, 224))
     plt.figure(figsize=(12, 12))
-    plt.subplot(4,5,1)
-    plt.text(0, 1, "<start>" , color='black', backgroundcolor='white', fontsize=8)
+    plt.subplot(4, 5, 1)
+    plt.text(0, 1, "<start>", color='black', backgroundcolor='white', fontsize=8)
     plt.imshow(image)
     plt.axis('off')
-    
+
     words = predicted_caption
     alpha_sum = np.zeros((14, 14))
     for t in range(len(words)):
@@ -70,8 +75,8 @@ def visualize_results(img_path, img_alpha, predicted_caption,savefile):
             break
         if t > 14:
             break
-        plt.subplot(4, 5, t+2)
-        plt.text(0, 1, '%s'%(words[t]) , color='black', backgroundcolor='white', fontsize=14)
+        plt.subplot(4, 5, t + 2)
+        plt.text(0, 1, '%s' % (words[t]), color='black', backgroundcolor='white', fontsize=14)
         plt.imshow(image)
 
         alp_curr = img_alpha[t, :].view(14, 14)
@@ -80,30 +85,30 @@ def visualize_results(img_path, img_alpha, predicted_caption,savefile):
         plt.gray()
         plt.imshow(alp_img, alpha=0.8)
         plt.axis('off')
-    
+
     plt.figure()
     plt.imshow(image)
     alpha_sum = skimage.transform.pyramid_expand(alpha_sum, upscale=16, sigma=20)
     plt.imshow(alpha_sum, alpha=0.8)
     plt.savefig(savefile)
-    
+
 
 def eval_all(params):
     images_files, captions, vocab = get_test_data(params)
-    encoder, decoder = load_models(params,vocab)
+    encoder, decoder = load_models(params, vocab)
     encoder.eval()
     decoder.eval()
     predicted_caption_ids = []
     true_captions = []
-    transform = process_image((224, 224), 224,"Val")
+    transform = process_image((224, 224), 224, "Val")
     file_not_exist = 0
     alphas = []
     # prediction
     with torch.no_grad():
         for img_path, cap in tqdm(zip(images_files, captions), total=len(images_files)):
             if os.path.exists(img_path):
-                word_ids,alpha = eval_one(img_path, encoder, decoder, transform, params['dim_of_features'],
-                                    params['num_of_features'],vocab)
+                word_ids, alpha = eval_one(img_path, encoder, decoder, transform, params['dim_of_features'],
+                                           params['num_of_features'], vocab)
                 predicted_caption_ids.append(word_ids)
                 true_captions.append(cap.lower())
                 alphas.append(alpha)
@@ -136,7 +141,7 @@ def eval_all(params):
     save_path = os.path.join(params["test_dir"], "prediction.csv")
     pd.DataFrame(output_df).to_csv(save_path, index=False)
     print("results saved as prediction.csv")
-    
+
     top_bleu4_inds = sorted(range(len(gram4_bleu_score_list)), key=lambda i: gram4_bleu_score_list[i])[-3:]
     bottom_bleu4_inds = sorted(range(len(gram4_bleu_score_list)), key=lambda i: -gram4_bleu_score_list[i])[-3:]
     top_bleu3_inds = sorted(range(len(gram3_bleu_score_list)), key=lambda i: gram3_bleu_score_list[i])[-3:]
@@ -146,20 +151,16 @@ def eval_all(params):
     top_bleu1_inds = sorted(range(len(gram1_bleu_score_list)), key=lambda i: gram1_bleu_score_list[i])[-3:]
     bottom_bleu1_inds = sorted(range(len(gram1_bleu_score_list)), key=lambda i: -gram1_bleu_score_list[i])[-3:]
 
-
-
     for i in range(3):
-        savefile = top_bleu4_+str(i)+'.png'
+        savefile = 'top_bleu4_' + str(i) + '.png'
         ind = top_bleu4_inds[i]
         img_file = images_files[ind]
         img_alpha = alphas[ind]
         predicted_caption = predicted_captions[ind]
-        visualize_results(img_file,img_alpha,predicted_caption,savefile)
-
+        visualize_results(img_file, img_alpha, predicted_caption, savefile)
 
 
 if __name__ == '__main__':
     args = config.parse_opt()
     params = vars(args)
     eval_all(params)
-
